@@ -1,0 +1,115 @@
+{
+  "project_name": "MotoPos - Motorcycle Parts Billing & POS System",
+  "app_type": "saas_app / dashboard",
+  "theme_strategy": "Industrial Tactical Dark & Light Mode Toggle with High Contrast POS Focus",
+  "typography": {
+    "font_family_heading": "Chivo, sans-serif",
+    "font_family_body": "Inter, sans-serif",
+    "font_family_mono": "JetBrains Mono, monospace",
+    "font_imports": "@import url('https://fonts.googleapis.com/css2?family=Chivo:ital,wght@0,300..900;1,300..900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');",
+    "hierarchy": {
+      "h1_hero": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight",
+      "h2_section": "text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight",
+      "h3_subsection": "text-lg sm:text-xl font-semibold",
+      "h4_card_title": "text-base sm:text-lg font-medium",
+      "body_text": "text-sm sm:text-base leading-relaxed",
+      "small_label": "text-xs font-semibold tracking-wider uppercase text-muted-foreground",
+      "mono_metric": "font-mono font-bold tracking-tight"
+    }
+  },
+  "colors": {
+    "dark_mode": {
+      "background": "#090d16",
+      "surface": "#111827",
+      "surface_hover": "#1f293d",
+      "card": "#131c2e",
+      "border": "#2a364f",
+      "primary_amber": "#f59e0b",
+      "primary_hover": "#d97706",
+      "accent_cyan": "#06b6d4",
+      "text_primary": "#f8fafc",
+      "text_secondary": "#94a3b8",
+      "success": "#10b981",
+      "warning": "#f59e0b",
+      "danger": "#ef4444",
+      "pos_active_cart": "#1e293b"
+    },
+    "light_mode": {
+      "background": "#f8fafc",
+      "surface": "#ffffff",
+      "surface_hover": "#f1f5f9",
+      "card": "#ffffff",
+      "border": "#e2e8f0",
+      "primary_amber": "#d97706",
+      "primary_hover": "#b45309",
+      "accent_cyan": "#0284c7",
+      "text_primary": "#0f172a",
+      "text_secondary": "#64748b",
+      "success": "#059669",
+      "warning": "#d97706",
+      "danger": "#dc2626",
+      "pos_active_cart": "#f1f5f9"
+    },
+    "gst_rates": {
+      "rate_5": "#3b82f6",
+      "rate_12": "#10b981",
+      "rate_18": "#8b5cf6",
+      "rate_28": "#f43f5e"
+    }
+  },
+  "visual_enhancers": {
+    "tactical_borders": "1px solid var(--border)",
+    "glassmorphism": "backdrop-blur-md bg-background/90 border border-border/80 shadow-md",
+    "status_badges": "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider",
+    "pos_shortcut_badge": "px-2 py-0.5 rounded text-[10px] font-mono bg-muted text-muted-foreground border border-border"
+  },
+  "layout_and_navigation": {
+    "pc_layout": "Sidebar navigation + Top Header with quick POS launcher, role switcher, sync status, and fast search. POS page features dual split view (Left 60% Parts Catalog with vehicle fitment filter / Right 40% Sticky Cart & GST Checkout panel).",
+    "mobile_layout": "Bottom navigation bar for key views (POS, Inventory, Customers, Ledger, Reports). POS mode uses a full-screen mobile search grid with a floating slide-up Cart drawer badge showing item count & live total.",
+    "top_header": "Fixed top bar with z-50, backdrop blur, search hotkey indicator (Ctrl+K), quick switch for Admin/Staff mode, and multi-device live status pill."
+  },
+  "component_architecture": {
+    "POS_Billing_Screen": "Instant search by Part Number, Description, or Vehicle Fitment (e.g., Hero Splendor, Bajaj Pulsar, TVS Apache). Quick quantity buttons (+/-), discount per line item, GST rate badge (5%, 12%, 18%, 28%), payment mode selector (Cash, UPI, Card, Credit Ledger with partial payment input), and print invoice trigger.",
+    "Parts_Inventory_Manager": "Data table listing Part No, Name, Vehicle Fitment tags, HSN Code, Stock Quantity, Low-Stock threshold alert, Unit Price, GST Rate %, and Edit/Delete actions.",
+    "Excel_Import_Modal": "Two-mode Excel import tool: 1) New Item Import with drag-and-drop column mapping (Map CSV/Excel columns to Part No, Name, HSN, Fitments, Price, GST rate); 2) Bulk Stock Update by matching Part Number and Quantity.",
+    "HSN_Master": "Table of HSN Codes, Description, GST % rate, and SGST/CGST/IGST breakdown toggle.",
+    "Customer_Ledger": "Customer directory with total outstanding credit balance, transaction ledger history, partial payment collector form, and receipt entry.",
+    "Supplier_Purchase_Entry": "Supplier management, purchase order recording, incoming stock updates, and supplier invoice record keeping.",
+    "Invoice_Viewer_and_Print": "Modal and dedicated print layout supporting both Thermal 80mm receipt format and standard A4 GST Invoice format with company details, QR payment code, and tax split.",
+    "Dashboard": "KPI summary widgets (Today's Sales, Collected Cash/UPI, Pending Customer Credit, Low Stock Alerts), Top Selling Motorcycle Parts bar chart, and Recent Invoices table.",
+    "User_Role_Management": "Admin vs Staff view toggle with granular permissions (Staff restricted from cost prices & stock edits)."
+  },
+  "image_urls": {
+    "hero_workshop": {
+      "url": "https://images.unsplash.com/photo-1636761358757-0a616eb9e17e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwyfHxtb3RvcmN5Y2xlJTIwbWVjaGFuaWMlMjB3b3Jrc2hvcCUyMHBhcnRzfGVufDB8fHx8MTc5MTU2NjY2N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Motorcycle Workshop Garage Mechanics",
+      "usage": "Login Screen Background & About Workshop Banner"
+    },
+    "workshop_tools": {
+      "url": "https://images.unsplash.com/photo-1549636367-13c144c47063?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwzfHxtb3RvcmN5Y2xlJTIwbWVjaGFuaWMlMjB3b3Jrc2hvcCUyMHBhcnRzfGVufDB8fHx8MTc5MTU2NjY2N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Assorted Motorcycle Tools and Equipment",
+      "usage": "Inventory Empty State & System Onboarding Graphic"
+    },
+    "engine_parts": {
+      "url": "https://images.unsplash.com/photo-1517524206127-48bbd363f3d7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwxfHxtb3RvcmN5Y2xlJTIwbWVjaGFuaWMlMjB3b3Jrc2hvcCUyMHBhcnRzfGVufDB8fHx8MTc5MTU2NjY2N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Motorcycle Engine Assembly and Spare Parts",
+      "usage": "POS Header Feature Visual"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Always build fully functional Javascript (.js) React components with Tailwind CSS.",
+    "Provide complete mock dataset pre-populated with realistic Indian motorcycle parts (e.g., Spark Plug Champion RG6YC, Brake Pad Front Bajaj Pulsar 150, Clutch Plate Hero Splendor Pro, Chain Sprocket Kit TVS Apache RTR, Air Filter Honda Activa 6G, Engine Oil Motul 20W40 1L).",
+    "Ensure the POS billing calculator accurately computes CGST + SGST (or IGST) based on item GST rates (5%, 12%, 18%, 28%) and line item quantities.",
+    "Implement Excel Import with a step-by-step column mapping UI (Upload File -> Map Fields -> Preview -> Import) and stock bulk update mode.",
+    "Include both Thermal 80mm receipt print view and standard A4 GST Invoice print view using CSS @media print styling.",
+    "Support partial payment entry in Customer Ledger (e.g., Bill total Rs 1,500, Paid Cash Rs 500, Remaining Rs 1,000 recorded in Customer Ledger).",
+    "Add 'data-testid' attributes to all buttons, inputs, tabs, search bars, table rows, and action elements for robust automated testing.",
+    "Never use transparent dropdowns or navigation bars. Always specify solid or backdropped surface backgrounds."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": {
+    "test_id_rule": "MUST add data-testid (kebab-case) to all interactive elements, search inputs, modal triggers, print buttons, and total metrics.",
+    "spacing_rule": "Use generous padding (p-4 to p-8) with direct border contrast to keep high-density POS data legible on desktop and touch-friendly on mobile.",
+    "responsive_rule": "POS cart must be sticky on desktop right column, and bottom slide-over sheet or dedicated tab on mobile viewports.",
+    "theme_toggle": "Provide a quick toggle in the header to switch between Tactical Dark (ideal for garage/shop floor displays) and High-Clarity Light mode."
+  }
+}
