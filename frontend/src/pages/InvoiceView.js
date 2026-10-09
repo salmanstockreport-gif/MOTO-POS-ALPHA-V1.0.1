@@ -18,10 +18,21 @@ function hsnSummary(lines) {
   return Object.values(m);
 }
 
+function Auths({ s, cls = "" }) {
+  const a = (s.brand_auths || []).filter((b) => b.brand || b.auth_no);
+  if (!a.length) return null;
+  return (
+    <div className={cls} data-testid="invoice-brand-auths">
+      <span className="font-bold">Authorised dealer: </span>
+      {a.map((b, i) => <span key={i}>{b.brand}{b.auth_no && ` (${b.auth_no})`}{i < a.length - 1 ? " · " : ""}</span>)}
+    </div>
+  );
+}
+
 function Thermal({ inv, s }) {
   return (
     <div className="w-[76mm] mx-auto bg-white text-black p-3 font-mono text-[11px] leading-tight" data-testid="invoice-thermal">
-      <div className="text-center"><div className="font-bold text-sm">{s.name}</div><div>{s.address}</div><div>{s.phone}</div>
+      <div className="text-center">{s.logo && <img src={s.logo} alt="logo" className="mx-auto max-h-14 mb-1 grayscale" data-testid="invoice-logo" />}<div className="font-bold text-sm">{s.name}</div><div>{s.address}</div><div>{s.phone}</div>
         {s.gstin && <div>GSTIN: {s.gstin}</div>}<div className="font-bold mt-1 border-y border-dashed border-black py-1">TAX INVOICE</div></div>
       <div className="my-1">No: {inv.number}<br />Date: {inv.date}<br />Cust: {inv.customer.name} {inv.customer.phone}
         {inv.customer.gstin && <><br />GSTIN: {inv.customer.gstin}</>}{inv.vehicle_no && <><br />Vehicle: {inv.vehicle_no}</>}</div>
@@ -42,6 +53,8 @@ function Thermal({ inv, s }) {
         {inv.change > 0 && <div className="flex justify-between"><span>Change</span><span>{n2(inv.change)}</span></div>}
         {inv.due > 0 && <div className="flex justify-between font-bold"><span>Balance due</span><span>{n2(inv.due)}</span></div>}
       </div>
+      {inv.notes && <div className="mt-1">Note: {inv.notes}</div>}
+      <Auths s={s} cls="mt-2 text-[10px] text-center" />
       <div className="text-center mt-2">{s.footer_note || "Thank you! Visit again."}</div>
     </div>
   );
@@ -53,11 +66,12 @@ function A4({ inv, s }) {
   return (
     <div className="max-w-[210mm] mx-auto bg-white text-black p-6 text-[12px]" data-testid="invoice-a4">
       <div className="flex justify-between border-b-2 border-black pb-3">
-        <div><div className="text-xl font-extrabold">{s.name}</div><div className="whitespace-pre-line">{s.address}</div>
-          <div>{s.phone} {s.email}</div>{s.gstin && <div className="font-bold">GSTIN: {s.gstin}</div>}<div>State: {s.state}</div></div>
+        <div className="flex gap-4">{s.logo && <img src={s.logo} alt="logo" className="h-20 w-auto max-w-[140px] object-contain" data-testid="invoice-logo" />}<div><div className="text-xl font-extrabold">{s.name}</div><div className="whitespace-pre-line">{s.address}</div>
+          <div>{s.phone} {s.email}</div>{s.gstin && <div className="font-bold">GSTIN: {s.gstin}</div>}<div>State: {s.state}</div></div></div>
         <div className="text-right"><div className="text-lg font-bold">TAX INVOICE</div><div>No: <b>{inv.number}</b></div><div>Date: {inv.date}</div>
           {inv.status === "cancelled" && <div className="text-red-600 font-bold text-lg">CANCELLED</div>}</div>
       </div>
+      <Auths s={s} cls="py-1.5 border-b border-black text-[11px]" />
       <div className="grid grid-cols-2 gap-4 py-3 border-b border-black">
         <div><div className="font-bold">Bill to</div><div>{inv.customer.name}</div><div>{inv.customer.address}</div><div>{inv.customer.phone}</div>
           {inv.customer.gstin && <div>GSTIN: {inv.customer.gstin}</div>}{inv.customer.state && <div>State: {inv.customer.state}</div>}</div>
@@ -87,6 +101,7 @@ function A4({ inv, s }) {
         </div>
       </div>
       <div className="mt-3 border-t border-black pt-2"><b>Amount in words:</b> {amountInWords(inv.grand_total)}</div>
+      {inv.notes && <div className="mt-1"><b>Notes:</b> {inv.notes}</div>}
       <div className="flex justify-between mt-10"><div className="text-[11px]">{s.footer_note}{s.upi_id && <div>UPI: {s.upi_id}</div>}</div>
         <div className="text-center"><div className="h-10" /><div className="border-t border-black px-6">For {s.name}<br />Authorised Signatory</div></div></div>
     </div>

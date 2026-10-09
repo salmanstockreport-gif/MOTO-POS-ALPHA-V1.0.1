@@ -42,6 +42,8 @@ class SettingsIn(BaseModel):
     footer_note: str = ""
     allow_negative_stock: bool = False
     low_stock_default: int = 5
+    logo: str = ""
+    brand_auths: List[dict] = []
 
 
 class HsnIn(BaseModel):
@@ -284,12 +286,19 @@ async def delete_hsn(hid: str, _=Admin):
 
 
 # ---------------- Items ----------------
+SEARCH_FIELDS = ("part_no", "name", "fitments", "brand", "category", "hsn_code", "location")
+
+
+def item_search(q: str) -> dict:
+    tokens = [t for t in q.replace(",", " ").split() if t]
+    if not tokens:
+        return {}
+    return {"$and": [{"$or": [{k: rx(t)} for k in SEARCH_FIELDS]} for t in tokens]}
+
+
 @api.get("/items")
 async def list_items(q: str = "", low_stock: bool = False, limit: int = 50, skip: int = 0, user=Auth):
-    f = {}
-    if q:
-        f["$or"] = [{"part_no": rx(q)}, {"name": rx(q)}, {"fitments": rx(q)}, {"brand": rx(q)},
-                    {"category": rx(q)}, {"hsn_code": rx(q)}]
+    f = item_search(q)
     if low_stock:
         f["$expr"] = {"$lte": ["$stock", "$min_stock"]}
     total = await db.items.count_documents(f)
@@ -503,12 +512,8 @@ def party_routes(ptype: str, path: str):
         seq = await next_seq(f"receipt_{ptype}_{fin_year()}")
         ref = f"{'RCPT' if ptype == 'customer' else 'PAY'}/{fin_year()}/{seq:05d}"
         label = "Payment received" if ptype == "customer" else "Payment made"
-        if ptype == "customer":
-            await add_ledger(ptype, pid, "payment", 0, body.amount, ref, mode=body.mode,
-                             note=body.note or label, user=user, date=body.date)
-        else:
-            await add_ledger(ptype, pid, "payment", 0, body.amount, ref, mode=body.mode,
-                             note=body.note or label, user=user, date=body.date)
+        await add_ledger(ptype, pid, "payment", 0, body.amount, ref, mode=body.mode,
+                         note=body.note or label, user=user, date=body.date)
         return {"ok": True, "ref": ref, "party": out(await coll.find_one({"_id": oid(pid)}))}
 
 
@@ -550,6 +555,7 @@ async def create_invoice(body: InvoiceIn, user=Auth):
             tax = r2(gross - taxable)
             lines.append({"item_id": ln.item_id, "part_no": item["part_no"], "name": item["name"],
                           "hsn_code": item.get("hsn_code", ""), "unit": item.get("unit", "PCS"),
+                          "brand": item.get("brand", ""), "location": item.get("location", ""),
                           "mrp": item.get("mrp", 0), "qty": ln.qty, "rate": ln.rate, "discount": ln.discount,
                           "gst_rate": rate, "taxable": taxable,
                           "cgst": 0 if interstate else r2(tax / 2), "sgst": 0 if interstate else r2(tax - r2(tax / 2)),
@@ -630,6 +636,13 @@ async def list_invoices(q: str = "", date_from: str = "", date_to: str = "", sta
     total = await db.invoices.count_documents(f)
     cur = db.invoices.find(f, {"lines": 0}).sort("created_at", -1).skip(skip).limit(min(limit, 500))
     return {"total": total, "invoices": [out(d) async for d in cur]}
+
+
+@api.get("/invoices/next-number")
+async def next_invoice_number(_=Auth):
+    s = await get_settings()
+    c = await db.counters.find_one({"_id": f"invoice_{fin_year()}"}) or {"seq": 0}
+    return {"number": f"{s['invoice_prefix']}/{fin_year()}/{c['seq'] + 1:05d}", "date": today_ist()}
 
 
 @api.get("/invoices/{iid}")
