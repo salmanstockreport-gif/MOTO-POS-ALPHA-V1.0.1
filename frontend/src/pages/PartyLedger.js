@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, IndianRupee, Pencil, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, IndianRupee, Pencil, Printer, Trash2, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,6 +64,17 @@ export default function PartyLedger({ ptype }) {
     try { await api.delete(`/${path}/${id}`); nav(`/${path}`); } catch (e) { toast.error(errMsg(e)); }
   };
   if (!party) return <div className="label-xs">Loading…</div>;
+  const setAccount = async (suspended) => {
+    let grace = 7;
+    if (!suspended) {
+      const v = window.prompt("Reopen account for how many days before auto-suspend checks resume?", "7");
+      if (v === null) return;
+      grace = Number(v) || 0;
+    } else if (!window.confirm("Suspend this customer account?")) return;
+    try { await api.post(`/customers/${id}/account`, { suspended, grace_days: grace }); toast.success(suspended ? "Account suspended" : "Account reopened"); load(); }
+    catch (e) { toast.error(errMsg(e)); }
+  };
+  const avail = Math.max((party.credit_limit || 0) - (party.balance || 0), 0);
 
   return (
     <div className="print-area">
@@ -72,15 +83,29 @@ export default function PartyLedger({ ptype }) {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" data-testid="ledger-print-btn" onClick={() => window.print()}><Printer className="h-4 w-4 mr-2" />Statement</Button>
           <Button variant="outline" data-testid="party-edit-btn" onClick={() => setEdit(true)}><Pencil className="h-4 w-4 mr-2" />Edit</Button>
+          {isAdmin && isC && (party.suspended
+            ? <Button variant="outline" data-testid="reopen-account-btn" onClick={() => setAccount(false)}><Unlock className="h-4 w-4 mr-2 text-emerald-500" />Reopen account</Button>
+            : <Button variant="outline" data-testid="suspend-account-btn" onClick={() => setAccount(true)}><Lock className="h-4 w-4 mr-2 text-rose-500" />Suspend</Button>)}
           {isAdmin && <Button variant="outline" data-testid="party-delete-btn" onClick={del}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
           <Button data-testid="receive-payment-btn" onClick={() => setPay(true)}><IndianRupee className="h-4 w-4 mr-2" />{isC ? "Receive payment" : "Make payment"}</Button>
         </div>
       </div>
       <div className="hidden print:block mb-4 text-center"><div className="font-bold text-lg">{settings.name}</div><div className="text-xs">Ledger statement</div></div>
+      {isC && party.suspended && (
+        <div className="mb-4 rounded-lg border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-500 font-semibold" data-testid="suspended-banner">
+          Account suspended — {party.suspended_reason || "payment overdue"}. Billing is blocked until an admin reopens it.</div>)}
       <div className="rounded-lg border bg-card p-5 mb-4 flex flex-col sm:flex-row justify-between gap-4">
-        <div><h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight" data-testid="party-name">{party.name}</h1>
+        <div>{isC && <div className="font-mono text-sm font-bold text-primary" data-testid="party-code">Party code #{party.code}</div>}
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight" data-testid="party-name">{party.name}</h1>
           <div className="text-sm text-muted-foreground mt-1">{[party.phone, party.gstin && `GSTIN ${party.gstin}`, party.state].filter(Boolean).join(" · ")}</div>
-          <div className="text-sm text-muted-foreground">{party.address}</div></div>
+          <div className="text-sm text-muted-foreground">{party.address}</div>
+          {isC && <div className="flex flex-wrap gap-2 mt-3 text-xs">
+            <span className="px-2 py-1 rounded border font-mono" data-testid="party-credit-limit">Limit {inr(party.credit_limit)}</span>
+            <span className="px-2 py-1 rounded border font-mono text-emerald-500" data-testid="party-available-credit">Available {inr(avail)}</span>
+            <span className="px-2 py-1 rounded border font-mono">{party.credit_days} credit days</span>
+            {party.oldest_due_date && <span className={`px-2 py-1 rounded border font-mono ${party.oldest_due_date < todayStr() ? "text-rose-500 border-rose-500/40" : "text-amber-500"}`} data-testid="party-due-date">Oldest due {party.oldest_due_date}</span>}
+            {party.override_until && !party.suspended && party.override_until >= todayStr() && <span className="px-2 py-1 rounded border text-sky-500">Reopened till {party.override_until}</span>}
+          </div>}</div>
         <div className="sm:text-right"><div className="label-xs">{isC ? "Balance receivable" : "Balance payable"}</div>
           <div className={`font-mono text-3xl font-bold ${party.balance > 0 ? "text-rose-500" : "text-emerald-500"}`} data-testid="party-balance">{inr(party.balance)}</div></div>
       </div>

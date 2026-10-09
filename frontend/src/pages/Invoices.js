@@ -46,7 +46,7 @@ export default function Invoices() {
               <td className="px-4"><div>{v.customer?.name}</div><div className="text-[11px] text-muted-foreground">{v.customer?.phone} {v.vehicle_no}</div></td>
               <td className="px-4 hidden md:table-cell text-muted-foreground">{v.created_by}</td>
               <td className="px-4 text-right font-mono font-semibold">{inr(v.grand_total)}</td>
-              <td className="px-4 text-right font-mono hidden sm:table-cell">{inr(v.due)}</td>
+              <td className="px-4 text-right font-mono hidden sm:table-cell">{inr(v.due)}{v.due > 0 && v.due_date && <div className={`text-[10px] ${v.due_date < new Date().toISOString().slice(0, 10) ? "text-rose-500" : "text-muted-foreground"}`}>due {v.due_date}</div>}</td>
               <td className={`px-4 text-right text-[11px] font-bold uppercase ${v.status === "cancelled" ? "text-muted-foreground line-through" : STATUS[v.payment_status]}`}>{v.status === "cancelled" ? "cancelled" : v.payment_status}</td>
             </tr>))}</tbody>
         </table>

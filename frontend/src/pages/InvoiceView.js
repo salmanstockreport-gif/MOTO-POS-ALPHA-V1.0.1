@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { api, inr, errMsg, amountInWords } from "@/lib/api";
+import UpiQR from "@/components/UpiQR";
+
+const qrAmount = (inv) => {
+  if (inv.status !== "active") return 0;
+  if (inv.due > 0) return inv.due;
+  return inv.payments.filter((p) => p.mode === "upi").reduce((t, p) => t + p.amount, 0);
+};
 
 const n2 = (v) => Number(v || 0).toFixed(2);
 
@@ -34,7 +41,7 @@ function Thermal({ inv, s }) {
     <div className="w-[76mm] mx-auto bg-white text-black p-3 font-mono text-[11px] leading-tight" data-testid="invoice-thermal">
       <div className="text-center">{s.logo && <img src={s.logo} alt="logo" className="mx-auto max-h-14 mb-1 grayscale" data-testid="invoice-logo" />}<div className="font-bold text-sm">{s.name}</div><div>{s.address}</div><div>{s.phone}</div>
         {s.gstin && <div>GSTIN: {s.gstin}</div>}<div className="font-bold mt-1 border-y border-dashed border-black py-1">TAX INVOICE</div></div>
-      <div className="my-1">No: {inv.number}<br />Date: {inv.date}<br />Cust: {inv.customer.name} {inv.customer.phone}
+      <div className="my-1">No: {inv.number}<br />Date: {inv.date}<br />Cust: {inv.customer.name}{inv.customer_code && ` #${inv.customer_code}`} {inv.customer.phone}
         {inv.customer.gstin && <><br />GSTIN: {inv.customer.gstin}</>}{inv.vehicle_no && <><br />Vehicle: {inv.vehicle_no}</>}</div>
       <div className="border-t border-dashed border-black" />
       {inv.lines.map((l, i) => (
@@ -52,7 +59,9 @@ function Thermal({ inv, s }) {
         {inv.payments.map((p, i) => <div key={i} className="flex justify-between"><span>{p.mode.toUpperCase()}</span><span>{n2(p.amount)}</span></div>)}
         {inv.change > 0 && <div className="flex justify-between"><span>Change</span><span>{n2(inv.change)}</span></div>}
         {inv.due > 0 && <div className="flex justify-between font-bold"><span>Balance due</span><span>{n2(inv.due)}</span></div>}
+        {inv.due_date && <div className="flex justify-between"><span>Due date</span><span>{inv.due_date}</span></div>}
       </div>
+      <div className="text-center mt-2"><UpiQR s={s} amount={qrAmount(inv)} note={inv.number} size={110} testid="invoice-upi-qr" /></div>
       {inv.notes && <div className="mt-1">Note: {inv.notes}</div>}
       <Auths s={s} cls="mt-2 text-[10px] text-center" />
       <div className="text-center mt-2">{s.footer_note || "Thank you! Visit again."}</div>
@@ -73,7 +82,7 @@ function A4({ inv, s }) {
       </div>
       <Auths s={s} cls="py-1.5 border-b border-black text-[11px]" />
       <div className="grid grid-cols-2 gap-4 py-3 border-b border-black">
-        <div><div className="font-bold">Bill to</div><div>{inv.customer.name}</div><div>{inv.customer.address}</div><div>{inv.customer.phone}</div>
+        <div><div className="font-bold">Bill to</div><div>{inv.customer.name}{inv.customer_code && ` (#${inv.customer_code})`}</div><div>{inv.customer.address}</div><div>{inv.customer.phone}</div>
           {inv.customer.gstin && <div>GSTIN: {inv.customer.gstin}</div>}{inv.customer.state && <div>State: {inv.customer.state}</div>}</div>
         <div className="text-right">{inv.vehicle_no && <div>Vehicle: <b>{inv.vehicle_no}</b></div>}<div>Supply: {inv.interstate ? "Inter-state (IGST)" : "Intra-state (CGST+SGST)"}</div></div>
       </div>
@@ -98,6 +107,8 @@ function A4({ inv, s }) {
           <div className="flex justify-between font-bold text-base border-t-2 border-black pt-1"><span>Grand Total</span><span>₹{n2(inv.grand_total)}</span></div>
           <div className="flex justify-between"><span>Paid ({inv.payments.map((p) => p.mode.toUpperCase()).join(", ") || "-"})</span><span>{n2(inv.paid)}</span></div>
           {inv.due > 0 && <div className="flex justify-between font-bold"><span>Balance due</span><span>{n2(inv.due)}</span></div>}
+          {inv.due_date && <div className="flex justify-between"><span>Payment due date</span><span>{inv.due_date}</span></div>}
+          <div className="flex justify-end pt-2"><UpiQR s={s} amount={qrAmount(inv)} note={inv.number} size={100} testid="invoice-upi-qr" /></div>
         </div>
       </div>
       <div className="mt-3 border-t border-black pt-2"><b>Amount in words:</b> {amountInWords(inv.grand_total)}</div>

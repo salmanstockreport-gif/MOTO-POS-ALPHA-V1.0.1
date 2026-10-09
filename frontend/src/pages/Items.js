@@ -13,6 +13,17 @@ import { api, inr, errMsg, gstColor } from "@/lib/api";
 
 const PAGE = 50;
 
+function Expandable({ text, testid, className = "", mono = false }) {
+  const [open, setOpen] = useState(false);
+  const long = String(text || "").length > 30;
+  return (
+    <div data-testid={testid} onClick={long ? () => setOpen(!open) : undefined} title={long ? (open ? "Click to collapse" : "Click to show full text") : undefined}
+      className={`${long ? "cursor-pointer" : ""} ${open ? "whitespace-normal break-all" : "truncate max-w-[220px] md:max-w-[280px]"} ${mono ? "font-mono" : ""} ${className}`}>
+      {text}{long && <span className="text-[10px] text-primary font-semibold ml-1 whitespace-nowrap">{open ? "less ▴" : "more ▾"}</span>}
+    </div>
+  );
+}
+
 export default function Items() {
   const { isAdmin } = useAuth();
   const [sp] = useSearchParams();
@@ -56,9 +67,9 @@ export default function Items() {
           <tbody>
             {data.items.map((i) => (
               <tr key={i.id} className="border-t hover:bg-accent/40" data-testid={`item-row-${i.part_no}`}>
-                <td className="px-3 py-2.5"><div className="font-mono text-xs font-bold text-primary">{i.part_no}</div>
-                  <div className="font-medium">{i.name}</div><div className="text-[11px] text-muted-foreground">{[i.brand, i.category, i.location].filter(Boolean).join(" · ")}</div></td>
-                <td className="px-3 hidden md:table-cell max-w-xs"><div className="flex flex-wrap gap-1">{(i.fitments || []).map((f) => <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-muted">{f}</span>)}</div></td>
+                <td className="px-3 py-2.5"><Expandable text={i.part_no} mono className="text-xs font-bold text-primary" testid={`item-part-${i.part_no}`} />
+                  <Expandable text={i.name} className="font-medium" testid={`item-name-${i.part_no}`} /><Expandable text={[i.brand, i.category, i.location].filter(Boolean).join(" · ")} className="text-[11px] text-muted-foreground" /></td>
+                <td className="px-3 hidden md:table-cell max-w-xs"><Expandable text={(i.fitments || []).join(", ")} className="text-xs" testid={`item-fitments-${i.part_no}`} /></td>
                 <td className="px-3 hidden sm:table-cell"><div className="font-mono text-xs">{i.hsn_code || "-"}</div>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${gstColor(i.gst_rate)}`}>{i.gst_rate}%</span></td>
                 <td className="px-3 text-right font-mono">{inr(i.sale_price)}<div className="text-[10px] text-muted-foreground">MRP {inr(i.mrp)}</div></td>

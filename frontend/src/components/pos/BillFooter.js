@@ -47,10 +47,10 @@ export default function BillFooter({ s }) {
           <span className="font-mono text-2xl font-extrabold text-primary" data-testid="cart-grand-total">{inr(bill.grand)}</span></div>
         <Row k="Received" v={inr(Math.min(received, bill.grand))} />
         <Row k="Balance" v={inr(due)} cls={due > 0 ? "text-rose-500 font-semibold" : ""} />
-        <div className="flex gap-2 mt-3">
+        <div className="flex flex-wrap gap-2 mt-3">
           <Button data-testid="cart-clear-btn" variant="outline" onClick={clear} disabled={!cart.length}>Clear</Button>
-          <Button data-testid="save-new-btn" variant="secondary" className="flex-1" onClick={() => submit(false)} disabled={blocked}><Save className="h-4 w-4 mr-1" />Save & New</Button>
-          <Button data-testid="cart-checkout-btn" className="flex-1 font-bold" onClick={() => submit(true)} disabled={blocked}>
+          <Button data-testid="save-new-btn" variant="secondary" className="flex-1 min-w-[130px]" onClick={() => submit(false)} disabled={blocked}><Save className="h-4 w-4 mr-1" />Save & New</Button>
+          <Button data-testid="cart-checkout-btn" className="w-full sm:w-auto sm:flex-1 font-bold" onClick={() => submit(true)} disabled={blocked}>
             {busy ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Printer className="h-4 w-4 mr-1" />}Save & Print</Button>
         </div>
         <div className="text-[10px] text-muted-foreground mt-2 text-right">F2 search · Ctrl+Enter save & print</div>

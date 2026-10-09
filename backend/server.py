@@ -1,6 +1,7 @@
 from core import (db, out, oid, now_iso, today_ist, fin_year, rx, r2, num, hash_password,
                   verify_password, create_token, get_current_user, require_admin)
 import os
+import asyncio
 import logging
 from typing import List, Optional, Literal
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request
@@ -44,6 +45,8 @@ class SettingsIn(BaseModel):
     low_stock_default: int = 5
     logo: str = ""
     brand_auths: List[dict] = []
+    default_credit_limit: float = 10000
+    default_credit_days: int = 30
 
 
 class HsnIn(BaseModel):
@@ -77,6 +80,13 @@ class PartyIn(BaseModel):
     address: str = ""
     state: str = ""
     opening_balance: float = 0
+    credit_limit: Optional[float] = None
+    credit_days: Optional[int] = None
+
+
+class AccountIn(BaseModel):
+    suspended: bool
+    grace_days: int = 7
 
 
 class ImportIn(BaseModel):
@@ -143,10 +153,10 @@ def party_coll(ptype: str):
     return db.customers if ptype == "customer" else db.suppliers
 
 
-async def add_ledger(ptype, pid, etype, debit, credit, ref="", ref_id="", mode="", note="", user=None, date=None):
+async def add_ledger(ptype, pid, etype, debit, credit, ref="", ref_id="", mode="", note="", user=None, date=None, due_date=None):
     await db.ledger.insert_one({
         "party_type": ptype, "party_id": pid, "type": etype, "debit": r2(debit), "credit": r2(credit),
-        "ref": ref, "ref_id": ref_id, "mode": mode, "note": note, "date": date or today_ist(),
+        "ref": ref, "ref_id": ref_id, "mode": mode, "note": note, "date": date or today_ist(), "due_date": due_date,
         "created_at": now_iso(), "created_by": (user or {}).get("name", ""),
     })
     await party_coll(ptype).update_one({"_id": oid(pid)}, {"$inc": {"balance": r2(debit - credit)}})
@@ -162,6 +172,52 @@ async def get_settings() -> dict:
     s = await db.settings.find_one({"_id": "shop"}) or {}
     s.pop("_id", None)
     return {**SettingsIn().model_dump(), **s}
+
+
+def add_days(d: str, n: int) -> str:
+    return (datetime.strptime(d, "%Y-%m-%d") + timedelta(days=int(n or 0))).strftime("%Y-%m-%d")
+
+
+async def next_party_code() -> str:
+    return f"{10000 + await next_seq('party_code')}"
+
+
+async def oldest_unpaid_due(c: dict, settings: dict):
+    days = c.get("credit_days") or settings["default_credit_days"]
+    rows = await db.ledger.find({"party_type": "customer", "party_id": str(c["_id"])}).sort("created_at", 1).to_list(None)
+    credit = sum(r["credit"] for r in rows)
+    for r in rows:
+        if r["debit"] <= 0:
+            continue
+        if credit >= r["debit"] - 0.009:
+            credit -= r["debit"]
+            continue
+        return r.get("due_date") or add_days(r["date"], days)
+    return None
+
+
+async def check_suspend(c: dict, settings: dict = None) -> bool:
+    if c.get("suspended"):
+        return True
+    if c.get("balance", 0) <= 0.009:
+        return False
+    today = today_ist()
+    if (c.get("override_until") or "") >= today:
+        return False
+    due = await oldest_unpaid_due(c, settings or await get_settings())
+    if due and due < today:
+        await db.customers.update_one({"_id": c["_id"]}, {"$set": {
+            "suspended": True, "suspended_at": now_iso(), "suspended_reason": f"Payment overdue since {due}"}})
+        return True
+    return False
+
+
+async def sweep_overdue():
+    s = await get_settings()
+    n = 0
+    async for c in db.customers.find({"balance": {"$gt": 0.009}, "suspended": {"$ne": True}}):
+        n += await check_suspend(c, s)
+    return n
 
 
 def clean_item(user, doc):
@@ -453,7 +509,7 @@ def party_routes(ptype: str, path: str):
 
     @api.get(f"/{path}", name=f"list_{path}")
     async def list_parties(q: str = "", with_balance: bool = False, limit: int = 200, _=Auth):
-        f = {"$or": [{"name": rx(q)}, {"phone": rx(q)}, {"gstin": rx(q)}]} if q else {}
+        f = {"$or": [{"name": rx(q)}, {"phone": rx(q)}, {"gstin": rx(q)}, {"code": rx(q)}]} if q else {}
         if with_balance:
             f["balance"] = {"$gt": 0.009}
         return [out(c) async for c in coll.find(f).sort("name", 1).limit(min(limit, 1000))]
@@ -466,6 +522,15 @@ def party_routes(ptype: str, path: str):
         ob = data.pop("opening_balance")
         if data["phone"] and await coll.find_one({"phone": data["phone"]}):
             raise HTTPException(400, "A party with this phone already exists")
+        if ptype == "customer":
+            s = await get_settings()
+            admin = user["role"] == "admin"
+            data["credit_limit"] = data["credit_limit"] if admin and data["credit_limit"] is not None else s["default_credit_limit"]
+            data["credit_days"] = data["credit_days"] if admin and data["credit_days"] is not None else s["default_credit_days"]
+            data.update(code=await next_party_code(), suspended=False)
+        else:
+            data.pop("credit_limit")
+            data.pop("credit_days")
         data.update(balance=0, created_at=now_iso())
         r = await coll.insert_one(data)
         pid = str(r.inserted_id)
@@ -478,12 +543,22 @@ def party_routes(ptype: str, path: str):
         d = await coll.find_one({"_id": oid(pid)})
         if not d:
             raise HTTPException(404, "Not found")
+        if ptype == "customer":
+            s = await get_settings()
+            await check_suspend(d, s)
+            d = await coll.find_one({"_id": oid(pid)})
+            res = out(d)
+            res["oldest_due_date"] = await oldest_unpaid_due(d, s) if d.get("balance", 0) > 0.009 else None
+            return res
         return out(d)
 
     @api.put(f"/{path}/{{pid}}", name=f"update_{path}")
     async def update_party(pid: str, body: PartyIn, user=Auth):
         data = body.model_dump()
         data.pop("opening_balance")
+        for k in ("credit_limit", "credit_days"):
+            if ptype != "customer" or user["role"] != "admin" or data[k] is None:
+                data.pop(k)
         await coll.update_one({"_id": oid(pid)}, {"$set": data})
         return out(await coll.find_one({"_id": oid(pid)}))
 
@@ -521,6 +596,52 @@ party_routes("customer", "customers")
 party_routes("supplier", "suppliers")
 
 
+@api.post("/customers/{pid}/account")
+async def set_account(pid: str, body: AccountIn, user=Admin):
+    upd = {"suspended": body.suspended}
+    if body.suspended:
+        upd.update(suspended_at=now_iso(), suspended_reason=f"Suspended by {user['name']}", override_until="")
+    else:
+        upd.update(override_until=add_days(today_ist(), body.grace_days), reopened_by=user["name"], suspended_reason="")
+    await db.customers.update_one({"_id": oid(pid)}, {"$set": upd})
+    return out(await db.customers.find_one({"_id": oid(pid)}))
+
+
+@api.post("/customers-import")
+async def import_customers(body: ImportIn, user=Admin):
+    s = await get_settings()
+    inserted = updated = 0
+    errors = []
+    for i, row in enumerate(body.rows):
+        name = str(row.get("name") or "").strip()
+        phone = str(row.get("phone") or "").strip().split(".")[0]
+        if not name:
+            errors.append({"row": i + 2, "error": "Missing name"})
+            continue
+        fields = {k: str(row[k]).strip() for k in ("email", "gstin", "address", "state") if row.get(k) not in (None, "")}
+        fields["name"] = name
+        if phone:
+            fields["phone"] = phone
+        for k, cast in (("credit_limit", float), ("credit_days", int)):
+            if row.get(k) not in (None, ""):
+                fields[k] = cast(num(row[k]))
+        ex = await db.customers.find_one({"phone": phone}) if phone else None
+        if ex:
+            if body.update_existing:
+                await db.customers.update_one({"_id": ex["_id"]}, {"$set": fields})
+                updated += 1
+            continue
+        doc = {"phone": "", "email": "", "gstin": "", "address": "", "state": "",
+               "credit_limit": s["default_credit_limit"], "credit_days": s["default_credit_days"], **fields,
+               "code": await next_party_code(), "suspended": False, "balance": 0, "created_at": now_iso()}
+        r = await db.customers.insert_one(doc)
+        ob = num(row.get("opening_balance"))
+        if ob:
+            await add_ledger("customer", str(r.inserted_id), "opening", max(ob, 0), max(-ob, 0), note="Opening balance (import)", user=user)
+        inserted += 1
+    return {"inserted": inserted, "updated": updated, "errors": errors}
+
+
 # ---------------- Invoices ----------------
 @api.post("/invoices")
 async def create_invoice(body: InvoiceIn, user=Auth):
@@ -534,6 +655,9 @@ async def create_invoice(body: InvoiceIn, user=Auth):
             raise HTTPException(404, "Customer not found")
     interstate = bool(customer and customer.get("state") and settings["state"]
                       and customer["state"].strip().lower() != settings["state"].strip().lower())
+    if customer and await check_suspend(customer, settings):
+        c2 = await db.customers.find_one({"_id": customer["_id"]})
+        raise HTTPException(403, f"Account {c2.get('code', '')} is suspended ({c2.get('suspended_reason', '')}). Only admin can reopen it.")
 
     lines, reserved = [], []
     try:
@@ -581,17 +705,28 @@ async def create_invoice(body: InvoiceIn, user=Auth):
     tendered = r2(sum(p.amount for p in body.payments))
     paid = min(tendered, grand)
     due = r2(grand - paid)
+    err = None
     if due > 0.009 and not customer:
+        err = "Select a customer to bill on credit (unpaid balance)"
+    elif due > 0.009:
+        limit = customer.get("credit_limit", settings["default_credit_limit"]) or 0
+        bal = customer.get("balance", 0)
+        if limit <= 0:
+            err = f"Credit not allowed for {customer['name']} (credit limit is 0)"
+        elif bal + due > limit + 0.009:
+            err = f"Credit limit exceeded: limit {limit:.2f}, current balance {bal:.2f}, available {max(limit - bal, 0):.2f}"
+    if err:
         for iid, q, _ in reserved:
             await db.items.update_one({"_id": oid(iid)}, {"$inc": {"stock": q}})
-        raise HTTPException(400, "Select a customer to bill on credit (unpaid balance)")
+        raise HTTPException(400, err)
+    due_date = add_days(today_ist(), customer.get("credit_days") or settings["default_credit_days"]) if due > 0.009 else None
 
     seq = await next_seq(f"invoice_{fin_year()}")
     number = f"{settings['invoice_prefix']}/{fin_year()}/{seq:05d}"
     inv = {
         "number": number, "seq": seq, "date": today_ist(), "created_at": now_iso(),
         "created_by": user["name"], "created_by_id": user["id"], "status": "active",
-        "customer_id": body.customer_id,
+        "customer_id": body.customer_id, "customer_code": customer.get("code", "") if customer else "",
         "customer": {"name": customer["name"] if customer else (body.customer_name or "Walk-in Customer"),
                      "phone": customer.get("phone", "") if customer else body.customer_phone,
                      "gstin": customer.get("gstin", "") if customer else "",
@@ -604,7 +739,7 @@ async def create_invoice(body: InvoiceIn, user=Auth):
         "igst_total": r2(sum(x["igst"] for x in lines)),
         "round_off": r2(grand - total), "grand_total": grand,
         "payments": [p.model_dump() for p in body.payments if p.amount > 0],
-        "tendered": tendered, "change": r2(max(tendered - grand, 0)), "paid": paid, "due": due,
+        "tendered": tendered, "change": r2(max(tendered - grand, 0)), "paid": paid, "due": due, "due_date": due_date,
         "payment_status": "paid" if due <= 0.009 else ("partial" if paid > 0 else "credit"),
         "notes": body.notes,
     }
@@ -613,7 +748,8 @@ async def create_invoice(body: InvoiceIn, user=Auth):
     for iid, q, item in reserved:
         await move_stock(iid, item["part_no"], -q, "sale", number, user)
     if customer:
-        await add_ledger("customer", body.customer_id, "invoice", grand, 0, number, inv_id, note="Sales invoice", user=user)
+        await add_ledger("customer", body.customer_id, "invoice", grand, 0, number, inv_id, note="Sales invoice", user=user,
+                         due_date=due_date or today_ist())
         if paid > 0:
             modes = ", ".join(sorted({p.mode for p in body.payments if p.amount > 0}))
             await add_ledger("customer", body.customer_id, "payment", 0, paid, number, inv_id, mode=modes,
@@ -842,6 +978,24 @@ async def startup():
             "mrp": m, "sale_price": m, "purchase_price": cost, "stock": s, "min_stock": mn, "unit": "PCS",
             "location": "", "created_at": now_iso(), "updated_at": now_iso()}
             for p, n, b, c, f, h, m, cost, s, mn in SEED_ITEMS])
+    s = await get_settings()
+    async for c in db.customers.find({"code": {"$exists": False}}).sort("created_at", 1):
+        await db.customers.update_one({"_id": c["_id"]}, {"$set": {
+            "code": await next_party_code(), "suspended": c.get("suspended", False),
+            "credit_limit": c.get("credit_limit", s["default_credit_limit"]), "credit_days": c.get("credit_days", s["default_credit_days"])}})
+    await db.customers.create_index("code")
+    asyncio.create_task(overdue_loop())
+
+
+async def overdue_loop():
+    while True:
+        try:
+            n = await sweep_overdue()
+            if n:
+                logger.info(f"Suspended {n} overdue customer accounts")
+        except Exception as e:
+            logger.exception(e)
+        await asyncio.sleep(3600)
 
 
 @app.on_event("shutdown")

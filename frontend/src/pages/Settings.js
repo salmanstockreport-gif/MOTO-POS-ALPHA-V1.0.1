@@ -11,7 +11,8 @@ import { useAuth } from "@/context/AuthContext";
 import { api, errMsg } from "@/lib/api";
 
 const FIELDS = [["name", "Shop name"], ["phone", "Phone"], ["email", "Email"], ["gstin", "GSTIN"],
-  ["state", "State (for CGST/SGST vs IGST)"], ["invoice_prefix", "Invoice prefix"], ["upi_id", "UPI ID"], ["low_stock_default", "Default low-stock level"]];
+  ["state", "State (for CGST/SGST vs IGST)"], ["invoice_prefix", "Invoice prefix"], ["upi_id", "UPI ID (for dynamic QR)"], ["low_stock_default", "Default low-stock level"],
+  ["default_credit_limit", "Default credit limit for new customers (₹)"], ["default_credit_days", "Default credit days (due date)"]];
 
 function resizeLogo(file) {
   return new Promise((res, rej) => {
@@ -68,7 +69,8 @@ export default function Settings() {
   const save = async () => {
     try {
       const brand_auths = (f.brand_auths || []).filter((b) => b.brand?.trim() || b.auth_no?.trim());
-      const { data } = await api.put("/settings", { ...f, brand_auths, low_stock_default: Number(f.low_stock_default) || 0 });
+      const { data } = await api.put("/settings", { ...f, brand_auths, low_stock_default: Number(f.low_stock_default) || 0,
+        default_credit_limit: Number(f.default_credit_limit) || 0, default_credit_days: Number(f.default_credit_days) || 0 });
       setSettings(data); toast.success("Settings saved");
     } catch (e) { toast.error(errMsg(e)); }
   };
